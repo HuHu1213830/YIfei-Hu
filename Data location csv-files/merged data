@@ -1,0 +1,74 @@
+# Load necessary libraries
+library(WDI)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+
+# Define indicators
+indicators <- c(
+  'SL.UEM.TOTL.ZS',  # Unemployment, total (% of total labor force) (modeled ILO estimate)
+  'NY.GDP.MKTP.KD.ZG',  # GDP growth (annual %)
+  'FP.CPI.TOTL.ZG',  # Inflation, consumer prices (annual %)
+  'SL.TLF.CACT.NE.ZS',  # Labor force participation rate, total (% of total population ages 15+) (modeled ILO estimate)
+  'SP.POP.TOTL'  # Population, total
+)
+
+# Fetch data for years 2022-2023
+data <- WDI(country = "all", indicator = indicators, start = 2022, end = 2023, extra = TRUE)
+
+# Preview the data
+head(data)
+
+# Clean data: remove aggregated regions
+data <- data %>% filter(region != "Aggregates")
+
+# Save data to a CSV file
+write.csv(data, "world_bank_indicators.csv", row.names = FALSE)
+
+# Create a summary table
+summary_table <- data %>%
+  group_by(country, year) %>%
+  summarise(across(everything(), mean, na.rm = TRUE))
+
+# Save summary table to a document
+kable(summary_table, "html") %>%
+  kable_styling(full_width = FALSE) %>%
+  save_kable("summary_table.html")
+
+# Create a plot for each indicator
+plots <- list()
+
+for(ind in indicators) {
+  p <- ggplot(data, aes_string(x = 'year', y = ind, group = 'country', color = 'country')) +
+    geom_line() +
+    geom_point() +
+    labs(title = paste("Indicator:", ind),
+         x = "Year",
+         y = ind) +
+    theme_minimal()
+  plots[[ind]] <- p
+  ggsave(paste0(ind, ".png"), plot = p)
+}
+
+# Save plots to a PDF document
+pdf("world_bank_indicators_plots.pdf")
+for(p in plots) {
+  print(p)
+}
+dev.off()
+
+# Create an RMarkdown file for the comprehensive document
+rmarkdown_file <- "
+---
+title: 'World Bank Indicators Report'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
